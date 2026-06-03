@@ -1,0 +1,28 @@
+{
+  "project_name": "Infrastructure Resource & Market Terminal",
+  "version": "1.0.0",
+  "settings": {
+    "historical_period": "5y",
+    "rate_limit_delay_seconds": 2
+  },
+  "assets": {
+    "commodities": [
+      {
+        "ticker": "HG=F",
+        "name": "COMEX Copper Continuous Contract"
+      }
+    ],
+    "civil_engineering": [
+      {"ticker": "ARE.TO", "name": "Aecon Group Inc."},
+      {"ticker": "WSP.TO", "name": "WSP Global Inc."},
+      {"ticker": "STN.TO", "name": "Stantec Inc."},
+      {"ticker": "ATRL.TO", "name": "AtkinsRéalis Group Inc."}
+    ],
+    "mining": [
+      {"ticker": "FM.TO", "name": "First Quantum Minerals Ltd."},
+      {"ticker": "LUN.TO", "name": "Lundin Mining Corporation"},
+      {"ticker": "TECK-B.TO", "name": "Teck Resources Ltd. (Class B)"},
+      {"ticker": "ABX.TO", "name": "Barrick Gold Corporation"}
+    ]
+  }
+}
