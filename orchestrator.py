@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import pandas as pd
 from ingest import fetch_asset_data
 from features import add_market_features
 from storage import store_market_data
@@ -66,7 +67,24 @@ def run_pipeline() -> None:
             # Stage 2: Feature Engineering (Calculate 90 and 180-day MAs)
             enriched_df = add_market_features(raw_df, drop_nan=False)
             
+            # --- DEFENSIVE DATA ALIGNMENT FOR DUCKDB ---
+            # If features.py set 'date' as the index, bring it back as a column
+            if "date" not in enriched_df.columns and enriched_df.index.name == "date":
+                enriched_df = enriched_df.reset_index()
+            elif "date" not in enriched_df.columns:
+                enriched_df = enriched_df.reset_index()
+            
+            # Ensure column names are explicitly lowercase strings to prevent schema mismatches
+            enriched_df.columns = [str(col).lower() for col in enriched_df.columns]
+            
+            # Enforce that 'date' is positioned as the absolute first column
+            if "date" in enriched_df.columns:
+                cols = ["date"] + [col for col in enriched_df.columns if col != "date"]
+                enriched_df = enriched_df[cols]
+            # --------------------------------------------
+
             # Stage 3: Analytical Storage (Save to DuckDB)
+            logging.info(f"Connecting to DuckDB to flush structured schema for {ticker}...")
             store_market_data(enriched_df, ticker_symbol=ticker)
             
             logging.info(f"[{index}/{total_assets}] Completed pipeline cycle for {ticker}.")
