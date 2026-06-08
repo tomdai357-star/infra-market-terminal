@@ -162,7 +162,7 @@ class MarketTerminalWindow(QMainWindow):
             # 2. Apply Time-Lag Shift to Equities
             # Shifting forward organically drops the end dates where no future equity data exists yet
             df['equity_shifted'] = df['equity_close'].shift(-lag)
-            df = df.dropna()
+            df = df.dropna().reset_index(drop=True)
             
             # 3. Clear previous charts
             self.ax.reset()
