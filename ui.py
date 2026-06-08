@@ -161,20 +161,25 @@ class MarketTerminalWindow(QMainWindow):
                 
             # 2. Apply Time-Lag Shift to Equities
             # Shifting forward organically drops the end dates where no future equity data exists yet
+            # 2. Apply Time-Lag Shift to Equities
             df['equity_shifted'] = df['equity_close'].shift(-lag)
-            df = df.dropna().reset_index(drop=True)
+            df = df.dropna()
+            
+            # --- THE FIX: Promote the 'date' column to the official Index ---
+            df = df.set_index('date')
             
             # 3. Clear previous charts
             self.ax.reset()
             self.ax2.reset()
             
             # 4. Render Data
-            # Primary Axis (Left)
-            fplt.plot(df['date'], df['commodity_close'], ax=self.ax, legend=f"{commodity} Raw", color='#3B82F6', width=1)
-            fplt.plot(df['date'], df['commodity_ma_90'], ax=self.ax, legend=f"{commodity} 90-Day MA", color='#F59E0B', width=2)
+            # Because the date is now the Index, we only need to pass the Y-values. 
+            # finplot will automatically map the X-axis to your dates.
+            fplt.plot(df['commodity_close'], ax=self.ax, legend=f"{commodity} Raw", color='#3B82F6', width=1)
+            fplt.plot(df['commodity_ma_90'], ax=self.ax, legend=f"{commodity} 90-Day MA", color='#F59E0B', width=2)
             
             # Secondary Axis (Right)
-            fplt.plot(df['date'], df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
+            fplt.plot(df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
             
             # 5. Reset Zoom and Update Status
             fplt.autoviewrestore()
