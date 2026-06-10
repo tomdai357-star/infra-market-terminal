@@ -181,6 +181,21 @@ class MarketTerminalWindow(QMainWindow):
             # Secondary Axis (Right)
             fplt.plot(df['date'], df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
             
+            # --- NEW: Axis Labels & Title ---
+            # Set a dynamic title for the overall chart
+            self.ax.setTitle(f"{commodity} vs {equity} Momentum ({lag}-Day Shift)", color="#E2E8F0", size="12pt")
+            
+            # Label the X-axis
+            self.ax.setLabel('bottom', "Date", color="#64748B")
+            
+            # Label the Primary Y-axis (Left)
+            self.ax.setLabel('left', "Commodity Price (USD)", color="#64748B")
+            
+            # Label the Secondary Y-axis (Right)
+            # We apply this to self.ax (the main plot) to activate its right-hand border text
+            self.ax.showAxis('right')
+            self.ax.setLabel('right', "Normalized Equity (USD)", color="#64748B")
+
             # 5. Reset Zoom and Update Status
             fplt.autoviewrestore()
             self.status_label.setText(f"Rendering Complete | Displaying {commodity} vs {equity} with a {lag}-Day Reporting Delay")
