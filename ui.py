@@ -1,6 +1,7 @@
 import sys
 import os
 
+os.chdir('/Users/tomdai/Documents/infra-market-terminal')
 os.environ["PYQTGRAPH_QT_LIB"] = "PySide6"
 import json
 import logging
@@ -140,17 +141,20 @@ class MarketTerminalWindow(QMainWindow):
         
         try:
             # 1. Query DuckDB for overlapping date ranges
-            with duckdb.connect("terminal_data.db") as conn:
+            # 1. Query DuckDB for overlapping date ranges (with read_only to prevent locking)
+            with duckdb.connect("terminal_data.db", read_only=True) as conn:
                 query = f"""
                     SELECT 
                         c.date,
                         c.close AS commodity_close,
                         c.close_ma_90 AS commodity_ma_90,
-                        e.close AS equity_close
+                        (e.close * fx.close) AS equity_close
                     FROM daily_assets c
                     JOIN daily_assets e ON c.date = e.date
+                    JOIN daily_assets fx ON c.date = fx.date
                     WHERE c.ticker = '{commodity}' 
                       AND e.ticker = '{equity}'
+                      AND fx.ticker = 'CADUSD=X'
                     ORDER BY c.date ASC
                 """
                 df = conn.execute(query).df()
@@ -163,23 +167,19 @@ class MarketTerminalWindow(QMainWindow):
             # Shifting forward organically drops the end dates where no future equity data exists yet
             # 2. Apply Time-Lag Shift to Equities
             df['equity_shifted'] = df['equity_close'].shift(-lag)
-            df = df.dropna()
-            
-            # --- THE FIX: Promote the 'date' column to the official Index ---
-            df = df.set_index('date')
+            df = df.dropna().reset_index(drop=True)
             
             # 3. Clear previous charts
             self.ax.reset()
             self.ax2.reset()
             
             # 4. Render Data
-            # Because the date is now the Index, we only need to pass the Y-values. 
-            # finplot will automatically map the X-axis to your dates.
-            fplt.plot(df['commodity_close'], ax=self.ax, legend=f"{commodity} Raw", color='#3B82F6', width=1)
-            fplt.plot(df['commodity_ma_90'], ax=self.ax, legend=f"{commodity} 90-Day MA", color='#F59E0B', width=2)
+            # Explicitly feed finplot BOTH the Date column (X) and the Value column (Y)
+            fplt.plot(df['date'], df['commodity_close'], ax=self.ax, legend=f"{commodity} Raw", color='#3B82F6', width=1)
+            fplt.plot(df['date'], df['commodity_ma_90'], ax=self.ax, legend=f"{commodity} 90-Day MA", color='#F59E0B', width=2)
             
             # Secondary Axis (Right)
-            fplt.plot(df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
+            fplt.plot(df['date'], df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
             
             # 5. Reset Zoom and Update Status
             fplt.autoviewrestore()
