@@ -1,3 +1,4 @@
+
 import sys
 import os
 
@@ -150,7 +151,6 @@ class MarketTerminalWindow(QMainWindow):
         
         try:
             # 1. Query DuckDB for overlapping date ranges
-            # 1. Query DuckDB for overlapping date ranges (with read_only to prevent locking)
             with duckdb.connect("terminal_data.db", read_only=True) as conn:
                 query = f"""
                     SELECT 
@@ -173,26 +173,29 @@ class MarketTerminalWindow(QMainWindow):
                 return
                 
             # 2. Apply Time-Lag Shift to Equities
-            # Shifting forward organically drops the end dates where no future equity data exists yet
-            # 2. Apply Time-Lag Shift to Equities
             df['equity_shifted'] = df['equity_close'].shift(-lag)
             df = df.dropna().reset_index(drop=True)
             
-            # 3. Clear previous charts
+            # --- THE QUANTITATIVE FIX: Percentage Return Normalization ---
+            # Calculate the baseline starting prices to anchor everything to 0%
+            base_commodity = df['commodity_close'].iloc[0]
+            base_equity = df['equity_shifted'].iloc[0]
+            
+            # Convert raw dollars into % change from the start date
+            df['commodity_pct'] = ((df['commodity_close'] / base_commodity) - 1) * 100
+            df['commodity_ma_90_pct'] = ((df['commodity_ma_90'] / base_commodity) - 1) * 100
+            df['equity_pct'] = ((df['equity_shifted'] / base_equity) - 1) * 100
+            
+            # 3. Clear previous charts (We no longer need ax2!)
             self.ax.reset()
-            self.ax2.reset()
+            if hasattr(self, 'ax2') and self.ax2:
+                self.ax2.reset()
             
-            # 4. Render Data
-            fplt.plot(df['date'], df['commodity_close'], ax=self.ax, legend=f"{commodity} Raw", color='#3B82F6', width=1)
-            fplt.plot(df['date'], df['commodity_ma_90'], ax=self.ax, legend=f"{commodity} 90-Day MA", color='#F59E0B', width=2)
+            # 4. Render Data on a Single Shared Percentage Axis
+            fplt.plot(df['date'], df['commodity_pct'], ax=self.ax, legend=f"{commodity} Raw (%)", color='#3B82F6', width=1)
+            fplt.plot(df['date'], df['commodity_ma_90_pct'], ax=self.ax, legend=f"{commodity} 90-Day MA (%)", color='#F59E0B', width=2)
+            fplt.plot(df['date'], df['equity_pct'], ax=self.ax, legend=f"{equity} (+{lag} Days) (%)", color='#10B981', width=2)
             
-            # Secondary Axis (Right)
-            fplt.plot(df['date'], df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
-            
-            # --- THE FIX: Track the min and max values for the right-hand axis ---
-            y_min = df['equity_shifted'].min()
-            y_max = df['equity_shifted'].max()
-
             # --- AI Forecasting Overlay ---
             if self.chk_ml.isChecked():
                 try:
@@ -201,31 +204,31 @@ class MarketTerminalWindow(QMainWindow):
                     
                     forecast_df = generate_forecast(commodity, equity, forecast_days=lag)
                     
-                    # Plot the AI forecast
-                    fplt.plot(forecast_df['date'], forecast_df['predicted_equity'], ax=self.ax2, legend="AI Price Forecast", color='#F472B6', width=3)
+                    # Convert AI predictions to the same percentage scale
+                    forecast_df['predicted_pct'] = ((forecast_df['predicted_equity'] / base_equity) - 1) * 100
                     
-                    # Expand the scale if the AI predicts prices higher or lower than historical data
-                    y_min = min(y_min, float(forecast_df['predicted_equity'].min()))
-                    y_max = max(y_max, float(forecast_df['predicted_equity'].max()))
+                    # Plot the AI forecast
+                    fplt.plot(forecast_df['date'], forecast_df['predicted_pct'], ax=self.ax, legend="AI Forecast (%)", color='#F472B6', width=3)
                 except Exception as e:
                     logging.error(f"ML Engine failed: {e}")
             
-            # 5. Reset Zoom FIRST
+            # 5. Master Zoom Reset
+            # Now finplot can easily auto-zoom because everything lives on one scale
             fplt.autoviewrestore()
-
-            # --- THE FIX: Force the Secondary Axis to Auto-Scale AFTER zoom reset ---
-            padding = (y_max - y_min) * 0.05
-            fplt.set_y_range(y_min - padding, y_max + padding, ax=self.ax2)
             
             # --- Axis Labels & Title ---
             self.ax.setTitle(f"{commodity} vs {equity} Momentum ({lag}-Day Shift)", color="#E2E8F0", size="12pt")
             self.ax.setLabel('bottom', "Date", color="#64748B")
-            self.ax.setLabel('left', "Commodity Price (USD)", color="#64748B")
-            self.ax.showAxis('right')
-            self.ax.setLabel('right', "Normalized Equity (USD)", color="#64748B")
+            self.ax.setLabel('left', "Performance (% Change)", color="#64748B")
+            
+            # Hide the broken right axis permanently
+            self.ax.hideAxis('right')
 
             self.status_label.setText(f"Rendering Complete | Displaying {commodity} vs {equity} with a {lag}-Day Reporting Delay")
-
+        except Exception as e:
+            logging.error(f"Engine failure: {e}")
+            self.status_label.setText("System Error: Failed to execute correlation query.")
+            
 def main():
     app = QApplication(sys.argv)
     window = MarketTerminalWindow()
