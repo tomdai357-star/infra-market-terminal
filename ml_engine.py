@@ -55,11 +55,29 @@ def generate_forecast(commodity_ticker: str, equity_ticker: str, forecast_days: 
     logging.info("Training XGBoost Regressor...")
     model.fit(X, y)
     
-    # --- Future Prediction Logic will go here ---
-    logging.info("Model training complete.")
+    # --- NEW: Future Prediction Logic ---
+    logging.info(f"Projecting {forecast_days} days into the future...")
     
-    return train_df
+    # 5. Grab the most recent commodity data (the "blank zone" where future equity is unknown)
+    future_zone = df.tail(forecast_days).copy()
+    X_future = future_zone[['commodity_close', 'commodity_ma_90']]
+    
+    # 6. Ask the AI to predict the equity price based on these recent commodity movements
+    predictions = model.predict(X_future)
+    
+    # 7. Generate future calendar dates for these predictions (skipping weekends)
+    last_historical_date = pd.to_datetime(df['date'].dropna().iloc[-1])
+    future_dates = pd.bdate_range(start=last_historical_date + pd.Timedelta(days=1), periods=forecast_days)
+    
+    # 8. Package the forecast into a clean DataFrame
+    forecast_df = pd.DataFrame({
+        'date': future_dates,
+        'predicted_equity': predictions
+    })
+    
+    logging.info("Forecast generation complete.")
+    return forecast_df
 
 # Quick test execution
 if __name__ == "__main__":
-    generate_forecast("HG=F", "ARE.TO")
+    generate_forecast("HG=F", "ARE.TO", 90)

@@ -1,12 +1,16 @@
-# Environments
-venv/
-env/
-.env
-
-# Database files
+# Databases
 *.db
-*.db.wal
+*.sqlite
+*.duckdb
 
-# Python cache
+# PyInstaller Build Artifacts
+build/
+dist/
+*.spec
+
+# Python Caches
 __pycache__/
 *.pyc
+
+# macOS System Files
+.DS_Store

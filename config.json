@@ -7,10 +7,10 @@
   },
   "assets": {
     "commodities": [
-      {
-        "ticker": "HG=F",
-        "name": "COMEX Copper Continuous Contract"
-      }
+      { "ticker": "HG=F", "name": "COMEX Copper Continuous Contract" }
+    ],
+    "currencies": [
+      { "ticker": "CADUSD=X", "name": "CAD to USD Exchange Rate" }
     ],
     "civil_engineering": [
       {"ticker": "ARE.TO", "name": "Aecon Group Inc."},

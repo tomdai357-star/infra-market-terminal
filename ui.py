@@ -19,8 +19,12 @@ from PySide6.QtWidgets import (
     QFrame,
     QComboBox,
     QSpinBox,
-    QPushButton
+    QPushButton,
+    QCheckBox
 )
+
+from ml_engine import generate_forecast
+
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +106,11 @@ class MarketTerminalWindow(QMainWindow):
         self.spin_lag.setValue(90)
         control_layout.addWidget(self.spin_lag)
         
+        # Add the AI Toggle
+        self.chk_ml = QCheckBox("Enable AI Forecast")
+        self.chk_ml.setStyleSheet("color: #F472B6; font-weight: bold;") # Neon Pink
+        control_layout.addWidget(self.chk_ml)
+
         control_layout.addSpacing(20)
         self.btn_run = QPushButton("Run Analysis")
         self.btn_run.clicked.connect(self._on_run_clicked)
@@ -181,6 +190,19 @@ class MarketTerminalWindow(QMainWindow):
             # Secondary Axis (Right)
             fplt.plot(df['date'], df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
             
+            # --- NEW: AI Forecasting Overlay ---
+            if self.chk_ml.isChecked():
+                try:
+                    self.status_label.setText(f"Engine Active | Training XGBoost Model on RTX Hardware...")
+                    QApplication.processEvents() # Force UI to update text before freezing to calculate
+                    
+                    forecast_df = generate_forecast(commodity, equity, forecast_days=lag)
+                    
+                    # Plot the AI forecast in Neon Pink
+                    fplt.plot(forecast_df['date'], forecast_df['predicted_equity'], ax=self.ax2, legend="AI Price Forecast", color='#F472B6', width=3)
+                except Exception as e:
+                    logging.error(f"ML Engine failed: {e}")
+
             # --- NEW: Axis Labels & Title ---
             # Set a dynamic title for the overall chart
             self.ax.setTitle(f"{commodity} vs {equity} Momentum ({lag}-Day Shift)", color="#E2E8F0", size="12pt")
