@@ -183,48 +183,48 @@ class MarketTerminalWindow(QMainWindow):
             self.ax2.reset()
             
             # 4. Render Data
-            # Explicitly feed finplot BOTH the Date column (X) and the Value column (Y)
             fplt.plot(df['date'], df['commodity_close'], ax=self.ax, legend=f"{commodity} Raw", color='#3B82F6', width=1)
             fplt.plot(df['date'], df['commodity_ma_90'], ax=self.ax, legend=f"{commodity} 90-Day MA", color='#F59E0B', width=2)
             
             # Secondary Axis (Right)
             fplt.plot(df['date'], df['equity_shifted'], ax=self.ax2, legend=f"{equity} (+{lag} Days)", color='#10B981', width=2)
             
-            # --- NEW: AI Forecasting Overlay ---
+            # --- THE FIX: Track the min and max values for the right-hand axis ---
+            y_min = df['equity_shifted'].min()
+            y_max = df['equity_shifted'].max()
+
+            # --- AI Forecasting Overlay ---
             if self.chk_ml.isChecked():
                 try:
                     self.status_label.setText(f"Engine Active | Training XGBoost Model on RTX Hardware...")
-                    QApplication.processEvents() # Force UI to update text before freezing to calculate
+                    QApplication.processEvents() 
                     
                     forecast_df = generate_forecast(commodity, equity, forecast_days=lag)
                     
-                    # Plot the AI forecast in Neon Pink
+                    # Plot the AI forecast
                     fplt.plot(forecast_df['date'], forecast_df['predicted_equity'], ax=self.ax2, legend="AI Price Forecast", color='#F472B6', width=3)
+                    
+                    # Expand the scale if the AI predicts prices higher or lower than historical data
+                    y_min = min(y_min, float(forecast_df['predicted_equity'].min()))
+                    y_max = max(y_max, float(forecast_df['predicted_equity'].max()))
                 except Exception as e:
                     logging.error(f"ML Engine failed: {e}")
+            
+            # 5. Reset Zoom FIRST
+            fplt.autoviewrestore()
 
-            # --- NEW: Axis Labels & Title ---
-            # Set a dynamic title for the overall chart
+            # --- THE FIX: Force the Secondary Axis to Auto-Scale AFTER zoom reset ---
+            padding = (y_max - y_min) * 0.05
+            fplt.set_y_range(y_min - padding, y_max + padding, ax=self.ax2)
+            
+            # --- Axis Labels & Title ---
             self.ax.setTitle(f"{commodity} vs {equity} Momentum ({lag}-Day Shift)", color="#E2E8F0", size="12pt")
-            
-            # Label the X-axis
             self.ax.setLabel('bottom', "Date", color="#64748B")
-            
-            # Label the Primary Y-axis (Left)
             self.ax.setLabel('left', "Commodity Price (USD)", color="#64748B")
-            
-            # Label the Secondary Y-axis (Right)
-            # We apply this to self.ax (the main plot) to activate its right-hand border text
             self.ax.showAxis('right')
             self.ax.setLabel('right', "Normalized Equity (USD)", color="#64748B")
 
-            # 5. Reset Zoom and Update Status
-            fplt.autoviewrestore()
             self.status_label.setText(f"Rendering Complete | Displaying {commodity} vs {equity} with a {lag}-Day Reporting Delay")
-            
-        except Exception as e:
-            logging.error(f"Engine failure: {e}")
-            self.status_label.setText("System Error: Failed to execute correlation query.")
 
 def main():
     app = QApplication(sys.argv)
